@@ -26,9 +26,10 @@ stroi-mod test .
 
 ## Публикация
 
-```bash
-STROI_MOD_TOKEN=sh_... stroi-mod publish . --api https://stroi.homes
-```
+Единственный путь публикации и обновления этого мода — Pull Request в
+[`aquahitt/stroi-mods`](https://github.com/aquahitt/stroi-mods). Merge PR = модерация
+пройдена; мод появляется в приложении со следующим релизом stroi.homes. Подробности
+процесса — в [корневом README репозитория](../../README.md).
 
-После одобрения модератором мод появляется в каталоге/витрине платформы. На Android даёт
-capability `http:reg.ghb.by` + `user_input`; на web/iOS эти способности urезаны (стор-политика).
+На Android мод даёт capability `http:reg.ghb.by` + `user_input`; на web/iOS эти
+способности urезаны (стор-политика).

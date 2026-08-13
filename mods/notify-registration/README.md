@@ -24,9 +24,7 @@ stroi-mod test .         # прогон fixtures/*.json против sandbox
 
 ## Публикация
 
-```bash
-STROI_MOD_TOKEN=sh_... stroi-mod publish . --api https://stroi.homes
-```
-
-Отправляет `{manifest, declaration_json}` на модерацию (`POST /api/v1/mods/submissions`).
-После одобрения мод появляется в каталоге/витрине платформы.
+Единственный путь публикации и обновления этого мода — Pull Request в
+[`aquahitt/stroi-mods`](https://github.com/aquahitt/stroi-mods). Merge PR = модерация
+пройдена; мод появляется в приложении со следующим релизом stroi.homes. Подробности
+процесса — в [корневом README репозитория](../../README.md).
