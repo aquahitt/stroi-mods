@@ -1,0 +1,7 @@
+{
+  "event": { "event_type": "REGISTRATION_OPENED", "developer_id": "ghb", "external_id": "obj-1", "title": "Дом-1" },
+  "inputs": { "developer": "ghb" },
+  "userInputs": [],
+  "responses": [],
+  "expect": { "status": "success" }
+}

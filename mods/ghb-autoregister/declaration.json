@@ -1,0 +1,32 @@
+{
+  "http": {
+    "cookies": "jar",
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
+    }
+  },
+  "inputs": {
+    "full_name": { "type": "string", "transform": "split_fio" },
+    "phone": { "type": "string", "validate": "digits==9" }
+  },
+  "steps": [
+    { "id": "s1", "method": "GET", "url": "{{event.reg_url}}", "capture": { "url": "$response.final_url" }, "expect": { "status": 200 }, "fail_if": { "body_regex": "megaalert-content[^>]*>([^<]+)" } },
+    { "id": "s2", "method": "POST", "url": "{{s1.url}}", "follow_redirects": false,
+      "form": { "act": "reg_user", "lastname": "{{fio.last}}", "firstname": "{{fio.first}}", "middlename": "{{fio.middle}}", "phone": "{{phone}}", "consent": "1" },
+      "success_if": { "status": 302 },
+      "retry_if": { "body_contains": "Попробуйте позже", "timeout_ms": 30000, "interval_ms": 500 },
+      "redirect_301": "repost_to_location",
+      "fail_if": { "body_contains": "уже зарегистрирован" } },
+    { "id": "s3", "method": "GET", "url": "{{s2.url}}", "shortcut_ok": { "body_contains": "Регистрация завершена" }, "success_if": { "body_contains_any": ["sms_code", "смс-код", "введите код"] } },
+    { "id": "sms", "type": "user_input", "prompt": "Введите SMS-код", "timeout_s": 180, "channel": "sms_consent|manual" },
+    { "id": "s4", "method": "POST", "url": "{{s2.url}}", "follow_redirects": false,
+      "form": { "act": "conf_user", "sms_code": "{{sms.value}}" },
+      "success_if": { "status": 302 },
+      "retry_if": { "body_contains": "Попробуйте позже", "timeout_ms": 30000, "interval_ms": 500 },
+      "fail_if": { "body_contains_any": ["неверн", "incorrect"] } },
+    { "id": "s5", "method": "GET", "url": "{{s2.url}}", "success_if": { "body_contains_any": ["Регистрация завершена", "успешно зарегистрирован"] } }
+  ],
+  "retries": 1
+}

@@ -1,0 +1,12 @@
+{
+  "event": { "reg_url": "https://reg.ghb.by/register/?id=obj-123" },
+  "inputs": { "full_name": "Иванов Иван Иванович", "phone": "291234567" },
+  "userInputs": ["000000"],
+  "responses": [
+    { "status": 200, "finalUrl": "https://reg.ghb.by/register/?id=obj-123", "headers": {}, "body": "<html><form>reg</form></html>" },
+    { "status": 302, "finalUrl": "https://reg.ghb.by/register/?id=obj-123", "headers": { "location": "https://reg.ghb.by/register/?id=obj-123" }, "body": "" },
+    { "status": 200, "finalUrl": "https://reg.ghb.by/register/?id=obj-123", "headers": {}, "body": "<input name=\"sms_code\">введите код</input>" },
+    { "status": 200, "finalUrl": "https://reg.ghb.by/register/?id=obj-123", "headers": {}, "body": "SMS-код неверный" }
+  ],
+  "expect": { "status": "failed", "failedStep": "s4" }
+}

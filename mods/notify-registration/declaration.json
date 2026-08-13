@@ -1,0 +1,8 @@
+{
+  "http": { "cookies": "jar", "headers": {} },
+  "inputs": { "developer": { "type": "string" } },
+  "steps": [
+    { "id": "n1", "type": "notify", "title": "Открыта регистрация: {{event.title}}", "body": "Объект {{event.external_id}}" }
+  ],
+  "retries": 1
+}

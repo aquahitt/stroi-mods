@@ -1,0 +1,17 @@
+{
+  "name": "stroi-mods",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "tsx scripts/validate.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^6.0.3",
+    "@types/node": "^20.0.0"
+  }
+}

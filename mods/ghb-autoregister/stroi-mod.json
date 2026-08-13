@@ -1,0 +1,37 @@
+{
+  "id": "ghb-autoregister",
+  "version": "1.0.0",
+  "runtime": "declarative",
+  "engine": "^1.0",
+  "name": "GHB: авторегистрация на объекты",
+  "description": "При открытии регистрации у застройщика GHB автоматически заполняет и отправляет заявку (ввод SMS-кода вручную). Только Android. Использование на ваш риск.",
+  "platforms": ["android"],
+  "author": {
+    "name": "antiaquabot",
+    "repo": "https://github.com/antiaquabot/mod-ghb-autoregister"
+  },
+  "trigger": {
+    "event": "registration_open",
+    "developer": "ghb"
+  },
+  "permissions": ["events:subscribe:ghb", "http:reg.ghb.by", "user_input", "notifications:local"],
+  "category": "automation",
+  "tags": ["авторегистрация", "ghb", "регистрация"],
+  "inputs": {
+    "full_name": {
+      "type": "string",
+      "transform": "split_fio",
+      "label": "ФИО",
+      "placeholder": "Иванов Иван Иванович"
+    },
+    "phone": {
+      "type": "string",
+      "validate": "digits==9",
+      "label": "Телефон (9 цифр)",
+      "placeholder": "291234567"
+    }
+  },
+  "ui": { "widgets": [{ "type": "status" }], "panel": null },
+  "qg": { "selftest": true, "healthcheck_interval_s": 60 },
+  "limits": { "cpu_ms_per_event": 500, "memory_mb": 32, "messages_per_min": 120 }
+}

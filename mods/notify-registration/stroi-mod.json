@@ -1,0 +1,30 @@
+{
+  "id": "notify-registration",
+  "version": "1.0.0",
+  "runtime": "declarative",
+  "engine": "^1.0",
+  "name": "Уведомление об открытии регистрации",
+  "description": "Показывает уведомление в приложении, когда у выбранного застройщика открывается регистрация.",
+  "platforms": ["web", "android", "ios"],
+  "author": {
+    "name": "antiaquabot",
+    "repo": "https://github.com/antiaquabot/mod-notify-registration"
+  },
+  "trigger": {
+    "event": "registration_open",
+    "developer": "ghb"
+  },
+  "permissions": ["events:subscribe:ghb", "notifications:local"],
+  "category": "notifications",
+  "tags": ["уведомления", "регистрация", "ghb"],
+  "inputs": {
+    "developer": {
+      "type": "string",
+      "label": "Застройщик",
+      "options": [{ "value": "ghb", "label": "Главное жилищное бюро (GHB)" }]
+    }
+  },
+  "ui": { "widgets": [{ "type": "status" }], "panel": null },
+  "qg": { "selftest": true },
+  "limits": { "cpu_ms_per_event": 200, "memory_mb": 16, "messages_per_min": 30 }
+}

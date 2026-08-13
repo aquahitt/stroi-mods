@@ -1,0 +1,10 @@
+{
+  "event": { "reg_url": "https://reg.ghb.by/register/?id=obj-123" },
+  "inputs": { "full_name": "Иванов Иван Иванович", "phone": "291234567" },
+  "userInputs": [],
+  "responses": [
+    { "status": 200, "finalUrl": "https://reg.ghb.by/register/?id=obj-123", "headers": {}, "body": "<html><form>reg</form></html>" },
+    { "status": 200, "finalUrl": "https://reg.ghb.by/register/?id=obj-123", "headers": {}, "body": "Вы уже зарегистрированы на этот объект" }
+  ],
+  "expect": { "status": "failed", "failedStep": "s2" }
+}
