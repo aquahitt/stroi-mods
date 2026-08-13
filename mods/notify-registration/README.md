@@ -12,15 +12,28 @@
   (Уведомления), теги `уведомления` / `регистрация` / `ghb` — по ним мод находится
   в поиске и фильтрах каталога.
 - `declaration.json` — исполняемая декларация (notify-шаг).
-- `fixtures/` — детерминированные фикстуры для `stroi-mod test`.
+- `fixtures/` — детерминированные фикстуры; прогоняются внутренним CLI платформы
+  (`stroi-mod test`, см. ниже), для отправки PR не требуются.
 
-## Локальная разработка (CLI `@stroi/mod-cli`)
+## Локальная разработка
+
+Валидатор, который реально гоняет CI этого репозитория, доступен любому
+контрибьютору из корня репозитория:
 
 ```bash
-stroi-mod validate .     # QG-0: схема манифеста + guard declarative
-stroi-mod classify .     # категория + ограничения платформ
-stroi-mod test .         # прогон fixtures/*.json против sandbox
+npm install
+npm run validate
 ```
+
+Это тот же `scripts/validate.ts`, что запускает `.github/workflows/validate.yml`:
+проверяет схему манифеста, совпадение `id` с именем директории мода и
+наличие/валидность `declaration.json` для `runtime: "declarative"`.
+
+Полный CLI `@stroi/mod-cli` (`stroi-mod validate .` / `stroi-mod classify .` /
+`stroi-mod test .`, включая прогон `fixtures/*.json` против sandbox) —
+внутренний инструмент платформенной команды из приватного репозитория
+`aquahitt/stroi-homes`. Он не опубликован в npm и внешним контрибьюторам
+недоступен; для публикации мода через PR он не нужен.
 
 ## Публикация
 
