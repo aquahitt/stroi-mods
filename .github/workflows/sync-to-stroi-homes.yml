@@ -93,6 +93,7 @@ jobs:
           fi
 
       - name: Положить в очередь скрипт синка реестра
+        id: queue
         if: steps.diff.outputs.changed == 'true'
         # Правило из deploy/post-deploy/README.md: релиз, изменивший
         # mods.lock.json, обязан нести скрипт синка реестра — иначе новый мод
@@ -111,6 +112,10 @@ jobs:
             } | sort -n | tail -1
           )
           next=$(printf '%04d' $(( 10#${last:-0} + 1 )))
+          # git не хранит пустых каталогов: когда очередь разобрана релизом,
+          # `pending/` в чекауте отсутствует, и `cat >` падает с
+          # «No such file or directory». Поймано первым же живым прогоном.
+          mkdir -p deploy/post-deploy/pending
           path="deploy/post-deploy/pending/${next}-sync-mod-registry.sh"
           cat > "$path" <<'SCRIPT'
           #!/usr/bin/env bash
@@ -143,6 +148,7 @@ jobs:
           # Heredoc выше идёт с отступом ради читаемости YAML — снимаем его.
           sed -i 's/^          //' "$path"
           chmod +x "$path"
+          echo "number=${next}" >> "$GITHUB_OUTPUT"
           echo "Добавлен $path"
 
       - name: Открыть PR
@@ -150,6 +156,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.STROI_HOMES_TOKEN }}
           MODS_SHA: ${{ steps.mods.outputs.sha }}
+          QUEUE_NUMBER: ${{ steps.queue.outputs.number }}
         run: |
           set -euo pipefail
           branch="mods-sync/${MODS_SHA:0:12}"
@@ -176,6 +183,6 @@ jobs:
           Что в диффе:
           - \`apps/pwa/mods.lock.json\` — поднят \`commit\`, пересчитаны \`version\` и \`sha256\` каждого мода;
           - \`apps/pwa/src/mods/bundled/catalog.gen.ts\` — перегенерированный снапшот;
-          - \`deploy/post-deploy/pending/NNNN-sync-mod-registry.sh\` — скрипт синка реестра (без него \`install_mod\` отдаст 404 на новый мод).
+          - \`deploy/post-deploy/pending/${QUEUE_NUMBER}-sync-mod-registry.sh\` — скрипт синка реестра (без него \`install_mod\` отдаст 404 на новый мод).
 
           Гейт \`Mods bundled integrity\` проверяет соответствие лока и снапшота, гейт из #691 — наличие скрипта в очереди."
