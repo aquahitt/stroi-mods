@@ -1,0 +1,181 @@
+# Синк-PR: обновление вшитого снапшота модов в stroi-homes (#690).
+#
+# ЭТОТ ФАЙЛ ЗДЕСЬ НЕ РАБОТАЕТ. Он предназначен для публичного репозитория
+# aquahitt/stroi-mods и лежит в stroi-homes только затем, чтобы не потеряться
+# и ревьюиться вместе с кодом, который он вызывает. Порядок установки —
+# в README.md рядом.
+#
+# Что делает: по merge в main репозитория модов поднимает
+# apps/pwa/mods.lock.json#commit до нового HEAD, пересчитывает version+sha256
+# каждого мода, перегенерирует apps/pwa/src/mods/bundled/catalog.gen.ts,
+# кладёт в очередь post-deploy скрипт синка реестра и открывает PR.
+#
+# БЕЗОПАСНОСТЬ. Репозиторий модов публичный и принимает PR от посторонних, а
+# токен здесь имеет право записи в приватный stroi-homes. Отсюда ограничения,
+# которые нельзя ослаблять:
+#
+#   * Триггер — только `push` в `main` (то есть после мержа мейнтейнером) и
+#     ручной `workflow_dispatch`. Ни `pull_request_target`, ни `pull_request`
+#     с доступом к секретам: это стандартный путь угона токена через PR из
+#     форка.
+#   * Синк-PR НЕ автомержится. Merge в репозиторий модов — это модерация кода
+#     мода, но вендоринг втягивает чужой код в нашу сборку, и человек обязан
+#     увидеть дифф catalog.gen.ts глазами.
+#   * `permissions` пустой: workflow не пользуется GITHUB_TOKEN, только PAT.
+#
+name: Синк снапшота модов в stroi-homes
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "SHA репозитория модов; пусто — текущий HEAD main"
+        required: false
+        type: string
+
+# GITHUB_TOKEN не используется вовсе: запись идёт PAT'ом в чужой репозиторий.
+permissions: {}
+
+concurrency:
+  # Два мержа подряд не должны открывать два PR с расходящимися локами.
+  group: sync-to-stroi-homes
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Определить коммит модов
+        id: mods
+        run: echo "sha=${{ inputs.commit || github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Чекаут stroi-homes
+        uses: actions/checkout@v4
+        with:
+          repository: aquahitt/stroi-homes
+          ref: develop
+          token: ${{ secrets.STROI_HOMES_TOKEN }}
+          # Полная история: ветка синк-PR ответвляется от develop, а номер
+          # post-deploy скрипта считается в том числе по applied.md.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Установить зависимости
+        run: pnpm install --frozen-lockfile
+
+      - name: Поднять лок и перегенерировать снапшот
+        # Один вызов делает три вещи по порядку: пишет lock.commit, качает
+        # tarball по нему, пересчитывает version+sha256, генерирует
+        # catalog.gen.ts. Без --commit флаг --update-lock пересчитал бы хэши
+        # старого коммита, и PR вышел бы пустым — ровно то, из-за чего #690
+        # и заводился.
+        run: pnpm -C apps/pwa sync-mods -- --commit "${{ steps.mods.outputs.sha }}" --update-lock
+
+      - name: Проверить, что снапшот действительно поехал
+        id: diff
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- apps/pwa/mods.lock.json apps/pwa/src/mods/bundled/catalog.gen.ts; then
+            echo "Ни лок, ни снапшот не изменились — синкать нечего."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Положить в очередь скрипт синка реестра
+        if: steps.diff.outputs.changed == 'true'
+        # Правило из deploy/post-deploy/README.md: релиз, изменивший
+        # mods.lock.json, обязан нести скрипт синка реестра — иначе новый мод
+        # не получает строку в mod_catalog_entries, клиент показывает его из
+        # вшитого снапшота, а install_mod отдаёт 404. Гейт #691 проверяет это
+        # в CI, так что без скрипта синк-PR просто не пройдёт.
+        #
+        # Номера сквозные и не переиспользуются: следующий свободный считается
+        # по pending/ и по журналу applied.md, а не хардкодится.
+        run: |
+          set -euo pipefail
+          last=$(
+            {
+              ls deploy/post-deploy/pending/ 2>/dev/null | grep -oE '^[0-9]{4}' || true
+              grep -oE '^\| *[0-9]{4}' deploy/post-deploy/applied.md | grep -oE '[0-9]{4}' || true
+            } | sort -n | tail -1
+          )
+          next=$(printf '%04d' $(( 10#${last:-0} + 1 )))
+          path="deploy/post-deploy/pending/${next}-sync-mod-registry.sh"
+          cat > "$path" <<'SCRIPT'
+          #!/usr/bin/env bash
+          # post-deploy
+          # description: Синхронизировать реестр модификаций (mod_catalog_entries) с манифестами, вшитыми в apps/pwa/mods.lock.json
+          # environments: staging,production
+          # idempotent: yes
+          # timeout: 300
+          set -euo pipefail
+
+          # Сгенерирован автоматически синк-workflow репозитория модов (#690).
+          #
+          # Заводить или бампать мод в apps/pwa/mods.lock.json само по себе
+          # строку в mod_catalog_entries не создаёт. Без неё install_mod
+          # (src/api/routers/mods.py) отдаёт 404 на мод, который клиент уже
+          # показывает из вшитого снапшота: пользователь жмёт «Установить» и
+          # видит ошибку соединения, хотя сеть ни при чём. Оттуда же берутся
+          # token_scopes, так что молча ломается и выдача per-mod токена.
+          #
+          # Идемпотентен: апсерт по slug, повторный прогон с тем же локом —
+          # no-op. Не трогает revoked/revoked_reason/owner_token_id и не
+          # перезаписывает суженные администратором platforms у существующей
+          # записи.
+          #
+          # `-m scripts.sync_mod_registry` резолвится относительно текущей
+          # директории, поэтому cd в корень репозитория обязателен.
+          cd "$(dirname "$0")/../../.." || exit 1
+          "${PYTHON:-python3}" -m scripts.sync_mod_registry
+          SCRIPT
+          # Heredoc выше идёт с отступом ради читаемости YAML — снимаем его.
+          sed -i 's/^          //' "$path"
+          chmod +x "$path"
+          echo "Добавлен $path"
+
+      - name: Открыть PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.STROI_HOMES_TOKEN }}
+          MODS_SHA: ${{ steps.mods.outputs.sha }}
+        run: |
+          set -euo pipefail
+          branch="mods-sync/${MODS_SHA:0:12}"
+          git config user.name "stroi-mods sync"
+          git config user.email "noreply@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add apps/pwa/mods.lock.json apps/pwa/src/mods/bundled/catalog.gen.ts deploy/post-deploy/pending/
+          git commit -m "chore(mods): синк вшитого снапшота до ${MODS_SHA:0:12}
+
+          Автоматический синк-PR из aquahitt/stroi-mods (#690): поднят
+          lock.commit, пересчитаны version+sha256, перегенерирован
+          catalog.gen.ts, в очередь post-deploy положен скрипт синка реестра.
+
+          Refs #690"
+          git push origin "$branch"
+          gh pr create --repo aquahitt/stroi-homes --base develop --head "$branch" \
+            --title "chore(mods): синк вшитого снапшота до ${MODS_SHA:0:12}" \
+            --body "Автоматический синк-PR из \`aquahitt/stroi-mods\` (#690).
+
+          Коммит репозитория модов: \`${MODS_SHA}\`
+
+          **Мержится вручную.** Merge в репозиторий модов — это модерация кода мода, но вендоринг втягивает чужой код в нашу сборку: дифф \`catalog.gen.ts\` должен увидеть человек.
+
+          Что в диффе:
+          - \`apps/pwa/mods.lock.json\` — поднят \`commit\`, пересчитаны \`version\` и \`sha256\` каждого мода;
+          - \`apps/pwa/src/mods/bundled/catalog.gen.ts\` — перегенерированный снапшот;
+          - \`deploy/post-deploy/pending/NNNN-sync-mod-registry.sh\` — скрипт синка реестра (без него \`install_mod\` отдаст 404 на новый мод).
+
+          Гейт \`Mods bundled integrity\` проверяет соответствие лока и снапшота, гейт из #691 — наличие скрипта в очереди."
